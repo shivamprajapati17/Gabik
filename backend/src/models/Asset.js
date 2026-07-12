@@ -96,4 +96,17 @@ assetSchema.index({ tenantId: 1, status: 1 });
 assetSchema.index({ tenantId: 1, department: 1 });
 assetSchema.index({ tenantId: 1, assignedTo: 1 });
 
+// Instance methods for status transitions
+assetSchema.methods.setUnderMaintenance = async function() {
+  this.status = 'Under Maintenance';
+  await this.save();
+};
+
+assetSchema.methods.setAvailable = async function() {
+  this.status = 'Available';
+  this.assignedTo = null;
+  this.allocatedAt = null;
+  await this.save();
+};
+
 module.exports = mongoose.model('Asset', assetSchema);

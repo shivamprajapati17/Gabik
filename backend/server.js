@@ -33,6 +33,9 @@ app.use('/api/allocations', require('./src/routes/allocation'));
 // Booking routes
 app.use('/api/bookings', require('./src/routes/booking'));
 
+// Maintenance routes
+app.use('/api/maintenance-requests', require('./src/routes/maintenance'));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

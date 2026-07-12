@@ -6,7 +6,7 @@ const { validationResult } = require('express-validator');
 // @desc    Allocate an asset to a user
 // @route   POST /api/allocations
 // @access  Private (Asset Manager or Admin)
-exports.allocateAsset = async (req, res) => {
+const allocateAsset = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -78,7 +78,7 @@ exports.allocateAsset = async (req, res) => {
 // @desc    Return an allocated asset
 // @route   PUT /api/allocations/:id/return
 // @access  Private (Asset Manager, Admin, or the user who has the asset)
-exports.returnAsset = async (req, res) => {
+const returnAsset = async (req, res) => {
   try {
     const allocation = await Allocation.findById(req.params.id);
 
@@ -122,7 +122,7 @@ exports.returnAsset = async (req, res) => {
 // @desc    Transfer asset from one user to another
 // @route   PUT /api/allocations/:id/transfer
 // @access  Private (Asset Manager or Admin)
-exports.transferAsset = async (req, res) => {
+const transferAsset = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -180,7 +180,7 @@ exports.transferAsset = async (req, res) => {
 // @desc    Get all allocations (with filtering)
 // @route   GET /api/allocations
 // @access  Private (Asset Manager, Admin, or Department Head)
-exports.getAllocations = async (req, res) => {
+const getAllocations = async (req, res) => {
   try {
     const { status, userId, assetId, departmentId } = req.query;
 
@@ -212,7 +212,7 @@ exports.getAllocations = async (req, res) => {
 // @desc    Get allocation by ID
 // @route   GET /api/allocations/:id
 // @access  Private
-exports.getAllocationById = async (req, res) => {
+const getAllocationById = async (req, res) => {
   try {
     const allocation = await Allocation.findById(req.params.id)
       .populate([
