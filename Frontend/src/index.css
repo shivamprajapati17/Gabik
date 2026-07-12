@@ -1,36 +1,75 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  body { @apply font-poppins text-gabik-ink bg-gabik-50; }
-  h1 { @apply text-3xl font-semibold; }
-  h2 { @apply text-xl font-medium; }
+@theme {
+  --font-poppins: 'Poppins', sans-serif;
+  --color-gabik-50: #F3FBF3;
+  --color-gabik-100: #E3F7E5;
+  --color-gabik-300: #A9E6B4;
+  --color-gabik-500: #4FCB6E;
+  --color-gabik-700: #1E9E4A;
+  --color-gabik-teal: #2FBF9E;
+  --color-gabik-lime: #CFEA3A;
+  --color-gabik-red: #F4544D;
+  --color-gabik-red-bg: #FDEAE9;
+  --color-gabik-amber: #F0B429;
+  --color-gabik-amber-bg: #FCF3D9;
+  --color-gabik-blue: #3E8EF7;
+  --color-gabik-blue-bg: #E8F1FE;
+  --color-gabik-ink: #0E1F14;
+  --color-gabik-ink-muted: #5A6B5F;
+  --color-gabik-surface: #FFFFFF;
+  --color-gabik-border: #D6EFDA;
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --shadow-card: 0 4px 16px rgba(30, 158, 74, 0.08);
 }
 
-@layer components {
-  .btn-primary {
-    @apply px-5 py-2.5 rounded-[10px] font-medium text-white transition-all duration-150;
-    background: linear-gradient(135deg, #C9F5D6 0%, #4FCB6E 55%, #1E9E4A 100%);
-  }
-  .btn-primary:hover { @apply opacity-90 shadow-lg; transform: scale(0.98); }
-  .btn-secondary {
-    @apply px-5 py-2.5 rounded-[10px] font-medium border border-gabik-500 text-gabik-500 bg-white hover:bg-gabik-50 transition-all;
-  }
-  .card {
-    @apply bg-gabik-surface rounded-card shadow-card border border-gabik-border;
-  }
-  .badge-green { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800; }
-  .badge-red { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-gabik-red-bg text-gabik-red; }
-  .badge-amber { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-gabik-amber-bg text-gabik-amber; }
-  .badge-blue { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-gabik-blue-bg text-gabik-blue; }
-  .badge-gray { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600; }
-  .input-field {
-    @apply w-full px-4 py-2.5 rounded-[10px] border border-gabik-border bg-white text-sm
-    focus:outline-none focus:ring-2 focus:ring-gabik-500 focus:border-transparent;
-  }
-  .sidebar-active {
-    @apply bg-gabik-100 text-gabik-700 font-medium;
-  }
+body {
+  font-family: var(--font-poppins);
+  color: var(--color-gabik-ink);
+  background: var(--color-gabik-50);
 }
+
+h1 { font-size: 1.875rem; font-weight: 600; }
+h2 { font-size: 1.25rem; font-weight: 500; }
+
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.625rem 1.25rem; border-radius: var(--radius-control);
+  font-weight: 500; color: white; cursor: pointer; border: none;
+  background: linear-gradient(135deg, #C9F5D6 0%, #4FCB6E 55%, #1E9E4A 100%);
+  transition: all 0.15s;
+}
+.btn-primary:hover { opacity: 0.9; box-shadow: var(--shadow-card); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.625rem 1.25rem; border-radius: var(--radius-control);
+  font-weight: 500; background: white; cursor: pointer;
+  border: 1px solid var(--color-gabik-500); color: var(--color-gabik-500);
+  transition: all 0.15s;
+}
+.btn-secondary:hover { background: var(--color-gabik-50); }
+.btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.card {
+  background: var(--color-gabik-surface); border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card); border: 1px solid var(--color-gabik-border);
+}
+
+.badge-green { display: inline-flex; padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #dcfce7; color: #166534; }
+.badge-red { display: inline-flex; padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: var(--color-gabik-red-bg); color: var(--color-gabik-red); }
+.badge-amber { display: inline-flex; padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: var(--color-gabik-amber-bg); color: var(--color-gabik-amber); }
+.badge-blue { display: inline-flex; padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: var(--color-gabik-blue-bg); color: var(--color-gabik-blue); }
+.badge-gray { display: inline-flex; padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #f3f4f6; color: #6b7280; }
+
+.input-field {
+  width: 100%; padding: 0.625rem 1rem; border-radius: var(--radius-control);
+  border: 1px solid var(--color-gabik-border); background: white; font-size: 0.875rem;
+  outline: none; transition: all 0.15s;
+}
+.input-field:focus { border-color: transparent; box-shadow: 0 0 0 2px var(--color-gabik-500); }
+
+.sidebar-active { background: var(--color-gabik-100); color: var(--color-gabik-700); font-weight: 500; }

@@ -37,6 +37,7 @@ exports.register = async (req, res) => {
       role: 'employee'
     });
     await user.save();
+    await user.populate('tenantId', 'name domain');
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
     res.status(201).json({ token, refreshToken, user: user.toSafeObject() });
@@ -65,6 +66,8 @@ exports.login = async (req, res) => {
     }
     user.lastLogin = new Date();
     await user.save();
+    await user.populate('tenantId', 'name domain');
+    await user.populate('departmentId', 'name');
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
     res.json({ token, refreshToken, user: user.toSafeObject() });

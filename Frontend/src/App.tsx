@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
+import Homepage from './pages/Homepage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -20,13 +21,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-gabik-500 border-t-transparent rounded-full" /></div>;
-  if (user) return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-}
-
 function RoleRoute({ children, roles }: { children: React.ReactNode; roles: string[] }) {
   const { user } = useAuth();
   if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
@@ -36,10 +30,10 @@ function RoleRoute({ children, roles }: { children: React.ReactNode; roles: stri
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/" element={<Homepage />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="org-setup" element={<RoleRoute roles={['admin']}><OrgSetup /></RoleRoute>} />
         <Route path="assets" element={<Assets />} />
