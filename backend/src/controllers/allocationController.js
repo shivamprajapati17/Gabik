@@ -35,19 +35,37 @@ const allocateAsset = async (req, res) => {
     const existingAllocation = await Allocation.findOne({
       asset: assetId,
       status: 'Active'
-    });
+    }).populate([
+      { path: 'allocatedTo', select: 'firstName lastName email' },
+      { path: 'asset', select: 'name assetTag' }
+    ]);
 
     if (existingAllocation) {
-      return res.status(400).json({
-        message: 'Asset is already allocated to another user',
-        existingAllocation: existingAllocation._id
+      return res.status(409).json({ // 409 Conflict is more appropriate for this scenario
+        message: 'Asset is already allocated',
+        conflict: {
+          allocatedTo: {
+            _id: existingAllocation.allocatedTo._id,
+            name: `${existingAllocation.allocatedTo.firstName} ${existingAllocation.allocatedTo.lastName}`,
+            email: existingAllocation.allocatedTo.email
+          },
+          asset: {
+            _id: existingAllocation.asset._id,
+            name: existingAllocation.asset.name,
+            assetTag: existingAllocation.asset.assetTag
+          },
+          allocatedAt: existingAllocation.allocatedAt,
+          expectedReturnDate: existingAllocation.expectedReturnDate
+        },
+        suggestion: 'Submit a transfer request instead'
       });
     }
 
     // Create new allocation
     const allocation = new Allocation({
       asset: assetId,
-      user: userId,
+      allocatedTo: userId,
+      allocatedBy: req.user.id,
       department: departmentId || null,
       notes: notes || '',
       allocatedAt: new Date()
@@ -217,7 +235,8 @@ const getAllocationById = async (req, res) => {
     const allocation = await Allocation.findById(req.params.id)
       .populate([
         { path: 'asset', select: 'name assetTag category status' },
-        { path: 'user', select: 'firstName lastName email role' },
+        { path: 'allocatedTo', select: 'firstName lastName email role' },
+        { path: 'allocatedBy', select: 'firstName lastName email' },
         { path: 'department', select: 'name' }
       ]);
 

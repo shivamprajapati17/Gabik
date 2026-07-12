@@ -30,6 +30,9 @@ app.use('/api/auth', require('./src/routes/auth'));
 // Allocation routes
 app.use('/api/allocations', require('./src/routes/allocation'));
 
+// Transfer request routes
+app.use('/api/transfer-requests', require('./src/routes/transferRequest'));
+
 // Booking routes
 app.use('/api/bookings', require('./src/routes/booking'));
 
