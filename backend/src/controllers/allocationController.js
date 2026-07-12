@@ -1,265 +1,83 @@
 const Allocation = require('../models/Allocation');
 const Asset = require('../models/Asset');
-const User = require('../models/User');
-const { validationResult } = require('express-validator');
 
-// @desc    Allocate an asset to a user
-// @route   POST /api/allocations
-// @access  Private (Asset Manager or Admin)
-const allocateAsset = async (req, res) => {
+exports.allocate = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const { assetId, holderUserId, holderDepartmentId, expectedReturnDate } = req.body;
+    const asset = await Asset.findOne({ _id: assetId, tenantId: req.tenantId });
+    if (!asset) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } });
+    if (asset.status === 'lost' || asset.status === 'retired' || asset.status === 'disposed') {
+      return res.status(400).json({ error: { code: 'INVALID_STATE', message: `Asset is ${asset.status} and cannot be allocated` } });
     }
-
-    const { assetId, userId, departmentId, notes } = req.body;
-
-    // Check if asset exists and is available
-    const asset = await Asset.findById(assetId);
-    if (!asset) {
-      return res.status(404).json({ message: 'Asset not found' });
-    }
-
-    if (asset.status !== 'Available') {
-      return res.status(400).json({ message: 'Asset is not available for allocation' });
-    }
-
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Check for double allocation (active allocation for this asset)
-    const existingAllocation = await Allocation.findOne({
-      asset: assetId,
-      status: 'Active'
-    }).populate([
-      { path: 'allocatedTo', select: 'firstName lastName email' },
-      { path: 'asset', select: 'name assetTag' }
-    ]);
-
-    if (existingAllocation) {
-      return res.status(409).json({ // 409 Conflict is more appropriate for this scenario
-        message: 'Asset is already allocated',
-        conflict: {
-          allocatedTo: {
-            _id: existingAllocation.allocatedTo._id,
-            name: `${existingAllocation.allocatedTo.firstName} ${existingAllocation.allocatedTo.lastName}`,
-            email: existingAllocation.allocatedTo.email
-          },
-          asset: {
-            _id: existingAllocation.asset._id,
-            name: existingAllocation.asset.name,
-            assetTag: existingAllocation.asset.assetTag
-          },
-          allocatedAt: existingAllocation.allocatedAt,
-          expectedReturnDate: existingAllocation.expectedReturnDate
-        },
-        suggestion: 'Submit a transfer request instead'
+    const activeAllocation = await Allocation.findOne({ assetId, returnedAt: null }).populate('holderUserId', 'name email');
+    if (activeAllocation) {
+      return res.status(409).json({
+        error: { code: 'DOUBLE_ALLOCATION', message: 'Asset is already allocated' },
+        conflict: { currentHolder: activeAllocation.holderUserId, allocatedAt: activeAllocation.allocatedAt }
       });
     }
-
-    // Create new allocation
     const allocation = new Allocation({
-      asset: assetId,
-      allocatedTo: userId,
-      allocatedBy: req.user.id,
-      department: departmentId || null,
-      notes: notes || '',
-      allocatedAt: new Date()
+      tenantId: req.tenantId, assetId, holderUserId, holderDepartmentId,
+      expectedReturnDate, createdBy: req.user._id
     });
-
     await allocation.save();
-
-    // Update asset status to Allocated
-    asset.status = 'Allocated';
-    asset.allocatedTo = userId;
-    asset.allocatedAt = new Date();
+    asset.status = 'allocated';
     await asset.save();
-
-    // Populate references for response
-    await allocation.populate([
-      { path: 'asset', select: 'name assetTag' },
-      { path: 'user', select: 'firstName lastName email' },
-      { path: 'department', select: 'name' }
-    ]);
-
-    res.status(201).json(allocation);
+    await allocation.populate('holderUserId', 'name email');
+    await allocation.populate('assetId', 'name assetTag');
+    res.status(201).json({ data: allocation });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
 };
 
-// @desc    Return an allocated asset
-// @route   PUT /api/allocations/:id/return
-// @access  Private (Asset Manager, Admin, or the user who has the asset)
-const returnAsset = async (req, res) => {
+exports.returnAsset = async (req, res) => {
   try {
-    const allocation = await Allocation.findById(req.params.id);
-
-    if (!allocation) {
-      return res.status(404).json({ message: 'Allocation not found' });
-    }
-
-    // Check if already returned
-    if (allocation.status === 'Returned') {
-      return res.status(400).json({ message: 'Asset already returned' });
-    }
-
-    // Update allocation status
-    allocation.status = 'Returned';
+    const { returnConditionNotes } = req.body;
+    const allocation = await Allocation.findOne({ _id: req.params.id, tenantId: req.tenantId, returnedAt: null });
+    if (!allocation) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Active allocation not found' } });
     allocation.returnedAt = new Date();
+    allocation.returnConditionNotes = returnConditionNotes || '';
     await allocation.save();
-
-    // Update asset status back to Available
-    const asset = await Asset.findById(allocation.asset);
+    const asset = await Asset.findById(allocation.assetId);
     if (asset) {
-      asset.status = 'Available';
-      asset.allocatedTo = null;
-      asset.allocatedAt = null;
+      let newStatus = 'available';
+      if (asset.status === 'under_maintenance') newStatus = 'under_maintenance';
+      asset.status = newStatus;
       await asset.save();
     }
-
-    // Populate references for response
-    await allocation.populate([
-      { path: 'asset', select: 'name assetTag' },
-      { path: 'user', select: 'firstName lastName email' },
-      { path: 'department', select: 'name' }
-    ]);
-
-    res.json(allocation);
+    res.json({ data: allocation });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
 };
 
-// @desc    Transfer asset from one user to another
-// @route   PUT /api/allocations/:id/transfer
-// @access  Private (Asset Manager or Admin)
-const transferAsset = async (req, res) => {
+exports.getActiveAllocation = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { newUserId, notes } = req.body;
-    const allocation = await Allocation.findById(req.params.id);
-
-    if (!allocation) {
-      return res.status(404).json({ message: 'Allocation not found' });
-    }
-
-    // Check if allocation is active
-    if (allocation.status !== 'Active') {
-      return res.status(400).json({ message: 'Can only transfer active allocations' });
-    }
-
-    // Check if new user exists
-    const newUser = await User.findById(newUserId);
-    if (!newUser) {
-      return res.status(404).json({ message: 'New user not found' });
-    }
-
-    // Check if asset is still allocated (should be, but double-check)
-    const asset = await Asset.findById(allocation.asset);
-    if (!asset || asset.status !== 'Allocated') {
-      return res.status(400).json({ message: 'Asset is not currently allocated' });
-    }
-
-    // Update allocation
-    allocation.user = newUserId;
-    if (notes) allocation.notes = notes;
-    allocation.transferredAt = new Date();
-    await allocation.save();
-
-    // Update asset allocatedTo reference
-    asset.allocatedTo = newUserId;
-    await asset.save();
-
-    // Populate references for response
-    await allocation.populate([
-      { path: 'asset', select: 'name assetTag' },
-      { path: 'user', select: 'firstName lastName email' },
-      { path: 'department', select: 'name' }
-    ]);
-
-    res.json(allocation);
+    const allocation = await Allocation.findOne({ assetId: req.params.assetId, returnedAt: null })
+      .populate('holderUserId', 'name email')
+      .populate('holderDepartmentId', 'name');
+    res.json({ data: allocation });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
 };
 
-// @desc    Get all allocations (with filtering)
-// @route   GET /api/allocations
-// @access  Private (Asset Manager, Admin, or Department Head)
-const getAllocations = async (req, res) => {
+exports.list = async (req, res) => {
   try {
-    const { status, userId, assetId, departmentId } = req.query;
-
-    // Build filter object
-    const filter = {};
-    if (status) filter.status = status;
-    if (userId) filter.user = userId;
-    if (assetId) filter.asset = assetId;
-    if (departmentId) filter.department = departmentId;
-
-    // Add tenant isolation
-    filter.tenant = req.user.tenantId;
-
+    const { status, assetId, holderUserId } = req.query;
+    const filter = { tenantId: req.tenantId };
+    if (status === 'active') filter.returnedAt = null;
+    if (status === 'returned') filter.returnedAt = { $ne: null };
+    if (assetId) filter.assetId = assetId;
+    if (holderUserId) filter.holderUserId = holderUserId;
     const allocations = await Allocation.find(filter)
-      .populate([
-        { path: 'asset', select: 'name assetTag category' },
-        { path: 'user', select: 'firstName lastName email' },
-        { path: 'department', select: 'name' }
-      ])
+      .populate('assetId', 'name assetTag')
+      .populate('holderUserId', 'name email')
+      .populate('holderDepartmentId', 'name')
       .sort({ allocatedAt: -1 });
-
-    res.json(allocations);
+    res.json({ data: allocations });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
-};
-
-// @desc    Get allocation by ID
-// @route   GET /api/allocations/:id
-// @access  Private
-const getAllocationById = async (req, res) => {
-  try {
-    const allocation = await Allocation.findById(req.params.id)
-      .populate([
-        { path: 'asset', select: 'name assetTag category status' },
-        { path: 'allocatedTo', select: 'firstName lastName email role' },
-        { path: 'allocatedBy', select: 'firstName lastName email' },
-        { path: 'department', select: 'name' }
-      ]);
-
-    if (!allocation) {
-      return res.status(404).json({ message: 'Allocation not found' });
-    }
-
-    // Check tenant isolation
-    if (allocation.tenant.toString() !== req.user.tenantId.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    res.json(allocation);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
-  }
-};
-
-module.exports = {
-  allocateAsset,
-  returnAsset,
-  transferAsset,
-  getAllocations,
-  getAllocationById
 };

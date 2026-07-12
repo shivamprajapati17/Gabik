@@ -1,140 +1,101 @@
-const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { validationResult } = require('express-validator');
+const User = require('../models/User');
+const Tenant = require('../models/Tenant');
+const crypto = require('crypto');
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
-// @access  Public (but note: in the PRD, signup always creates an Employee, and roles are assigned by Admin)
-const register = async (req, res) => {
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET || 'gabik-secret-key', { expiresIn: '15m' });
+};
+
+const generateRefreshToken = (userId) => {
+  return jwt.sign({ userId, type: 'refresh' }, process.env.JWT_SECRET || 'gabik-secret-key', { expiresIn: '7d' });
+};
+
+exports.register = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const { name, email, password, organizationName } = req.body;
+    if (!name || !email || !password || !organizationName) {
+      return res.status(400).json({ error: { code: 'VALIDATION', message: 'name, email, password, organizationName required' } });
     }
-
-    const { firstName, lastName, email, password, departmentId } = req.body;
-
-    // Check if user already exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+    let tenant = await Tenant.findOne({ domain: organizationName.toLowerCase().replace(/\s+/g, '-') });
+    if (!tenant) {
+      tenant = new Tenant({
+        name: organizationName,
+        domain: organizationName.toLowerCase().replace(/\s+/g, '-')
+      });
+      await tenant.save();
     }
-
-    // Create new user
-    // Note: In the PRD, signup always creates an Employee. Role assignment is done by Admin.
-    user = new User({
-      firstName,
-      lastName,
+    const existingUser = await User.findOne({ tenantId: tenant._id, email });
+    if (existingUser) {
+      return res.status(400).json({ error: { code: 'DUPLICATE', message: 'User already exists in this organization' } });
+    }
+    const user = new User({
+      tenantId: tenant._id,
+      name,
       email,
-      password,
-      role: 'Employee', // Default role as per PRD
-      department: departmentId || null
+      passwordHash: password,
+      role: 'employee'
     });
-
     await user.save();
-
-    // Create JWT token
-    const payload = {
-      user: {
-        id: user.id
-      }
-    };
-
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' },
-      (err, token) => {
-        if (err) throw err;
-        res.status(201).json({
-          token,
-          user: {
-            id: user.id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            role: user.role
-          }
-        });
-      }
-    );
+    const token = generateToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    res.status(201).json({ token, refreshToken, user: user.toSafeObject() });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    console.error(err);
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
 };
 
-// @desc    Authenticate user & get token
-// @route   POST /api/auth/login
-// @access  Public
-const login = async (req, res) => {
+exports.login = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const { email, password } = req.body;
-
-    // Check if user exists
-    let user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    if (!email || !password) {
+      return res.status(400).json({ error: { code: 'VALIDATION', message: 'email and password required' } });
     }
-
-    // Check password
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } });
+    }
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } });
     }
-
-    // Update last login
+    if (user.status !== 'active') {
+      return res.status(403).json({ error: { code: 'ACCOUNT_INACTIVE', message: 'Account is inactive' } });
+    }
     user.lastLogin = new Date();
     await user.save();
-
-    // Create JWT token
-    const payload = {
-      user: {
-        id: user.id
-      }
-    };
-
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({
-          token,
-          user: {
-            id: user.id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            role: user.role
-          }
-        });
-      }
-    );
+    const token = generateToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    res.json({ token, refreshToken, user: user.toSafeObject() });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    console.error(err);
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Server error' } });
   }
 };
 
-// @desc    Get user data
-// @route   GET /api/auth/me
-// @access  Private
-const getMe = async (req, res) => {
+exports.refreshToken = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    res.json(user);
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ error: { code: 'VALIDATION', message: 'refreshToken required' } });
+    }
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET || 'gabik-secret-key');
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid refresh token' } });
+    }
+    const user = await User.findById(decoded.userId);
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'User not found or inactive' } });
+    }
+    const token = generateToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
+    res.json({ token, refreshToken: newRefreshToken });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid refresh token' } });
   }
 };
 
-module.exports = { register, login, getMe };
+exports.getMe = async (req, res) => {
+  res.json({ user: req.user.toSafeObject() });
+};

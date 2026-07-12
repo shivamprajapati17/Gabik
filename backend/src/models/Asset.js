@@ -1,112 +1,30 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const assetSchema = new Schema({
-  tenantId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Tenant',
-    required: true
-  },
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  category: {
-    type: Schema.Types.ObjectId,
-    ref: 'AssetCategory',
-    required: true
-  },
-  assetTag: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
-  serialNumber: {
-    type: String,
-    trim: true,
-    sparse: true
-  },
-  acquisitionDate: {
-    type: Date
-  },
-  acquisitionCost: {
-    type: Number,
-    min: 0
-  },
-  condition: {
-    type: String,
-    enum: ['Excellent', 'Good', 'Fair', 'Poor'],
-    default: 'Good'
-  },
-  location: {
-    type: String,
-    trim: true
-  },
-  photos: [{
-    url: {
-      type: String,
-      required: true
-    },
-    caption: {
-      type: String
-    }
-  }],
-  documents: [{
-    name: {
-      type: String,
-      required: true
-    },
-    url: {
-      type: String,
-      required: true
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  isSharedBookable: {
-    type: Boolean,
-    default: false
-  },
-  status: {
-    type: String,
-    enum: ['Available', 'Allocated', 'Under Maintenance', 'Lost', 'Retired', 'Disposed'],
-    default: 'Available'
-  },
-  department: {
-    type: Schema.Types.ObjectId,
-    ref: 'Department',
-    default: null
-  },
-  assignedTo: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  }
-}, {
-  timestamps: true
-});
+const ASSET_STATUSES = ['available', 'allocated', 'reserved', 'under_maintenance', 'lost', 'retired', 'disposed'];
+const ASSET_CONDITIONS = ['new', 'good', 'fair', 'poor', 'damaged'];
 
-// Indexes for better query performance
-assetSchema.index({ tenantId: 1, assetTag: 1 });
+const assetSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  assetTag: { type: String, required: true, trim: true },
+  name: { type: String, required: true, trim: true },
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssetCategory', required: true },
+  serialNumber: { type: String, trim: true, default: '' },
+  qrCode: { type: String, trim: true, default: null, sparse: true },
+  acquisitionDate: { type: Date },
+  acquisitionCost: { type: Number, min: 0, default: 0 },
+  condition: { type: String, enum: ASSET_CONDITIONS, default: 'good' },
+  location: { type: String, trim: true, default: '' },
+  departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null },
+  status: { type: String, enum: ASSET_STATUSES, default: 'available' },
+  isBookable: { type: Boolean, default: false },
+  photoUrl: { type: String, default: null }
+}, { timestamps: true });
+
+assetSchema.index({ tenantId: 1, assetTag: 1 }, { unique: true });
 assetSchema.index({ tenantId: 1, status: 1 });
-assetSchema.index({ tenantId: 1, department: 1 });
-assetSchema.index({ tenantId: 1, assignedTo: 1 });
-
-// Instance methods for status transitions
-assetSchema.methods.setUnderMaintenance = async function() {
-  this.status = 'Under Maintenance';
-  await this.save();
-};
-
-assetSchema.methods.setAvailable = async function() {
-  this.status = 'Available';
-  this.assignedTo = null;
-  this.allocatedAt = null;
-  await this.save();
-};
+assetSchema.index({ tenantId: 1, categoryId: 1 });
+assetSchema.index({ tenantId: 1, name: 'text', serialNumber: 'text', assetTag: 'text' });
 
 module.exports = mongoose.model('Asset', assetSchema);
+module.exports.ASSET_STATUSES = ASSET_STATUSES;
+module.exports.ASSET_CONDITIONS = ASSET_CONDITIONS;

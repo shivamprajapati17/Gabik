@@ -1,78 +1,26 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const maintenanceRequestSchema = new Schema({
-  tenantId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Tenant',
-    required: true
-  },
-  assetId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Asset',
-    required: true
-  },
-  requestedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  approvedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
-  assignedTo: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
-  issueDescription: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  priority: {
-    type: String,
-    enum: ['Low', 'Medium', 'High', 'Critical'],
-    default: 'Medium'
-  },
-  photos: [{
-    url: {
-      type: String,
-      required: true
-    },
-    caption: {
-      type: String
-    }
-  }],
-  status: {
-    type: String,
-    enum: ['Pending', 'Approved', 'Rejected', 'Technician Assigned', 'In Progress', 'Resolved', 'Closed'],
-    default: 'Pending'
-  },
-  resolutionNotes: {
-    type: String,
-    trim: true
-  },
-  requestedAt: {
-    type: Date,
-    default: Date.now
-  },
-  approvedAt: {
-    type: Date
-  },
-  completedAt: {
-    type: Date
-  }
-}, {
-  timestamps: true
-});
+const MAINTENANCE_STATUSES = ['pending', 'approved', 'rejected', 'technician_assigned', 'in_progress', 'resolved'];
+const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 
-// Indexes for better query performance
-maintenanceRequestSchema.index({ tenantId: 1, assetId: 1, status: 1 });
-maintenanceRequestSchema.index({ tenantId: 1, requestedBy: 1, status: 1 });
-maintenanceRequestSchema.index({ tenantId: 1, assignedTo: 1, status: 1 });
-maintenanceRequestSchema.index({ tenantId: 1, requestedAt: -1 });
+const maintenanceRequestSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asset', required: true },
+  raisedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  issueDescription: { type: String, required: true },
+  priority: { type: String, enum: PRIORITIES, default: 'medium' },
+  photoUrl: { type: String, default: null },
+  status: { type: String, enum: MAINTENANCE_STATUSES, default: 'pending' },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  technicianName: { type: String, default: '' },
+  resolutionNotes: { type: String, default: '' },
+  approvedAt: { type: Date, default: null },
+  resolvedAt: { type: Date, default: null }
+}, { timestamps: true });
+
+maintenanceRequestSchema.index({ tenantId: 1, assetId: 1 });
+maintenanceRequestSchema.index({ tenantId: 1, status: 1 });
 
 module.exports = mongoose.model('MaintenanceRequest', maintenanceRequestSchema);
+module.exports.MAINTENANCE_STATUSES = MAINTENANCE_STATUSES;
+module.exports.PRIORITIES = PRIORITIES;

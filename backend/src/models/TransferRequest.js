@@ -1,56 +1,18 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const transferRequestSchema = new Schema({
-  assetId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Asset',
-    required: true
-  },
-  fromUserId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  toUserId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  reason: {
-    type: String,
-    trim: true
-  },
-  status: {
-    type: String,
-    enum: ['requested', 'approved', 'rejected'],
-    default: 'requested'
-  },
-  requestedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  approvedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  organizationId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Tenant',
-    required: true
-  }
-}, {
-  timestamps: true
-});
+const transferRequestSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
+  assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asset', required: true },
+  fromUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  toUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  reason: { type: String, default: '' },
+  status: { type: String, enum: ['requested', 'approved', 'rejected'], default: 'requested' },
+  requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  resolvedAt: { type: Date, default: null }
+}, { timestamps: true });
 
-// Indexes for efficient querying
-transferRequestSchema.index({ organizationId: 1 });
-transferRequestSchema.index({ status: 1 });
-transferRequestSchema.index({ assetId: 1, status: 1 });
-transferRequestSchema.index({ organizationId: 1, status: 1 });
-transferRequestSchema.index({ fromUserId: 1 });
-transferRequestSchema.index({ toUserId: 1 });
-transferRequestSchema.index({ requestedBy: 1 });
+transferRequestSchema.index({ tenantId: 1, status: 1 });
+transferRequestSchema.index({ tenantId: 1, assetId: 1 });
 
 module.exports = mongoose.model('TransferRequest', transferRequestSchema);

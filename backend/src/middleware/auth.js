@@ -1,66 +1,42 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { validationResult } = require('express-validator');
 
-// Middleware to authenticate JWT token
-const authenticateToken = async (req, res, next) => {
+const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-    if (!token) {
-      return res.status(401).json({ message: 'Access token required' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Access token required' } });
     }
-
-    jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', async (err, user) => {
-      if (err) {
-        return res.status(403).json({ message: 'Invalid or expired token' });
-      }
-
-      // Attach user to request object
-      req.user = await User.findById(user.id).select('-password');
-      if (!req.user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      next();
-    });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gabik-secret-key');
+    const user = await User.findById(decoded.userId).populate('tenantId');
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'User not found or inactive' } });
+    }
+    if (user.tenantId.status !== 'active') {
+      return res.status(403).json({ error: { code: 'TENANT_SUSPENDED', message: 'Organization is suspended' } });
+    }
+    req.user = user;
+    req.tenantId = user.tenantId._id || user.tenantId;
+    next();
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: { code: 'TOKEN_EXPIRED', message: 'Token expired' } });
+    }
+    return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid token' } });
   }
 };
 
-// Middleware to check user role
-const authorizeRole = (...allowedRoles) => {
+const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
     }
-
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
     }
-
     next();
   };
 };
 
-// Middleware to validate request
-const validate = (validations) => {
-  return async (req, res, next) => {
-    await Promise.all(validations.map(validation => validation.run(req)));
-
-    const errors = validationResult(req);
-    if (errors.isEmpty()) {
-      return next();
-    }
-
-    return res.status(400).json({ errors: errors.array() });
-  };
-};
-
-module.exports = {
-  authenticateToken,
-  authorizeRole,
-  validate
-};
+module.exports = { authenticate, authorize };

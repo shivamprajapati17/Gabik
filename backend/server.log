@@ -1,0 +1,18 @@
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+C:\Users\DELL\Desktop\gabik\backend\src\routes\allocation.js:8
+router.use(auth.authenticateToken);
+                ^
+
+TypeError: Cannot read properties of undefined (reading 'authenticateToken')
+    at Object.<anonymous> (C:\Users\DELL\Desktop\gabik\backend\src\routes\allocation.js:8:17)
+    at Module._compile (node:internal/modules/cjs/loader:1830:14)
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1576:12)
+    at require (node:internal/modules/helpers:153:16)
+    at Object.<anonymous> (C:\Users\DELL\Desktop\gabik\backend\server.js:31:29)
+    at Module._compile (node:internal/modules/cjs/loader:1830:14)
+
+Node.js v24.15.0
